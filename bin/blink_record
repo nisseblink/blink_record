@@ -1,0 +1,50 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'logger'
+
+logger = Logger.new(File.expand_path("~/.blink_record.log"), 4, 1024000)
+#This should exist for all systems.
+tf2_app_manifest = File.expand_path("~/.steam/steam/SteamApps/appmanifest_440.acf")
+begin
+	manifest_raw = File.open(tf2_app_manifest){|file| file.readlines}
+	demo_dir = manifest_raw.join.match(/.*\"appinstalldir\".*\"(.+)\"/)[1] + "/tf/"
+rescue => e
+	$stderr.puts(e)
+	logger.error(e)
+	abort("Could not find tf2 installdir path from file: #{tf2_app_manifest}. Aborting.")
+end
+
+files = Dir.glob(demo_dir + "demo_*.dem")
+files.each do |demo_file_path|
+	#Begin the demo parsing
+	begin
+		raw_data = File.open(demo_file_path, "r"){|file| file.sysread(4096)}
+		# https://developer.valvesoftware.com/wiki/DEM_Format
+		demodata = raw_data.unpack("A8/I/I/A260/A260/A260/A260/f/I/I/I/")
+		nick = demodata[4]
+		map = demodata[5]
+		duration = demodata[7]
+		#Same weird format as prec, added seconds though.
+		time_str = File.mtime(demo_file_path).strftime("%Y%m%d_%H%M%S") 
+		new_file_path = demo_dir + "#{time_str}_#{map}-#{nick}"
+		new_file_path += "_#{(duration/60).to_i}m#{duration.to_i-(duration/60).to_i}s.dem"
+		puts demo_file_path + " ---> " + new_file_path
+		FileUtils.mv(demo_file_path, new_file_path)
+	rescue => e
+		$stderr.puts(e)
+		logger.error(e)
+		abort("Could not move #{demo_file_path}. Aborting.")
+	end
+end
+if ARGV.size == 0
+	system("steam steam://rungameid/440") if ARGV.size < 1
+elsif ARGV.size ==  1
+	system("steam #{ARGV[0]}")
+else
+	#This should not happen but who knowes.
+	logger.warn("To many arguments")
+	logger.warn(ARGV)
+	abort("Usage: blink_record [steamurl]")
+end
+
