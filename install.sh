@@ -7,10 +7,12 @@ SYSTEMSHORTCUT='/usr/share/applications/blink_record.desktop'
 BINARYPATH='/usr/local/bin/blink_record'
 
 function ulog {
+	{ : ;}
 	#echo "$1" >> uninstall.log
 }
 
 function ilog {
+	{ : ;}
 	#echo "$1" >> install.log
 }
 

@@ -28,7 +28,7 @@ files.each do |demo_file_path|
 		#Same weird format as prec, added seconds though.
 		time_str = File.mtime(demo_file_path).strftime("%Y%m%d_%H%M%S") 
 		new_file_path = demo_dir + "#{time_str}_#{map}-#{nick}"
-		new_file_path += "_#{(duration/60).to_i}m#{duration.to_i-(duration/60).to_i}s.dem"
+		new_file_path += "_#{(duration/60).to_i}m#{(duration%60).to_i}s.dem"
 		puts demo_file_path + " ---> " + new_file_path
 		FileUtils.mv(demo_file_path, new_file_path)
 	rescue => e
