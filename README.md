@@ -14,6 +14,7 @@ Version 0.1
 Screenshots
 -----------
 Example of some gui dialogs.
+
 ![ScreenShot](http://i.imgur.com/JQ86kcx.png)
 ![ScreenShot](http://i.imgur.com/FQzEqyd.png)
 
@@ -30,10 +31,10 @@ It will sort nicely with prec demo files.
 How do I install it?
 ----------------
 * Make backup of your existing configs. You should always have a backup...
-* Open a terminal and run:
-	gksudo apt-get install -y ruby wget && \
-	wget https://github.com/nisseblink/blink_record/archive/master.zip -O blink_record-master.zip\
-	&& unzip -o blink_record-master.zip && cd blink_record-master && ./installer.rb
+* If you are using Ubuntu/Debian/Mint etc. Open a terminal and run (copy paste this):
+
+  gksudo apt-get install -y ruby wget && wget https://github.com/nisseblink/blink_record/archive/master.zip -O blink_record-master.zip && unzip -o blink_record-master.zip && cd blink_record-master && ./installer.rb
+
 * Open blink_record that you should be able to find through your favorite application launcher (it will launch tf2).
 * Open console and type `bind KEY blink_record` e.g. `bind f6 blink_record`.
 * (If you have unbindall you need to edit them and add `bind KEY blink_record` at the appropriate location(s).)
@@ -64,17 +65,14 @@ Action: Use other, then /usr/local/bin/blink_record
 
 Requirements
 ----------------
-The automatic script is built for Ubuntu/Debian/Linux Mint etc and it needs apt-get to install the *ruby* environment.
-If you have some other distribution, install *ruby* before and you should be fine.
-
 **During installation**
 * gksudo (used for installing ruby and copy binary and application launcher)
-* Team Fortress 2 (It must find the tf2 installation directory)
+* Team Fortress 2
 * zenity (Steam uses this so should already be installed)
 
 **Application runtime**
 * Ruby
-* Team Fortress 2 (It must find the tf2 installation directory)
+* Team Fortress 2
 * zenity (Steam uses this so should already be installed)
 
 How does it work
@@ -101,7 +99,7 @@ There are about 300 lines of code so it should not be a problem.
 
 Feel free to contribute to the project by sending me changes/bugfixes or simply bugreports :)
 
-The project is released with the GLPv3 licence.
+The project is released under the GLPv3 licence.
 
 Future possible features
 ========================
@@ -112,4 +110,4 @@ calls a script that logs the time to a file and then handle it
 when renaming the demo files. Let me know what you think about this.
 
 It's also possible to group screenshots taken by steam with demo files.
-For status and result screenshots. This will require the user to press another button though.
+For status and result screenshots. This will require the user to press the in-game screenshot button though.
