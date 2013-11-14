@@ -1,0 +1,84 @@
+#!/usr/bin/env ruby
+# encoding: utf-8
+
+require 'fileutils'
+require 'logger'
+
+$version = 0.1
+$logger = Logger.new(File.expand_path("~/.blink_record.log"), 4, 1024000)
+
+class BlinkRC
+  attr_accessor :settings,:path
+
+  def initialize(path="~/.blink_recordrc")
+    path = File.expand_path(path)
+    @path = path
+    @settings = Hash.new
+    if(File.exists?(path))
+      $logger.info "Reading from config file."
+      File.open(path) do |file|
+        file.readlines.each do |line|
+          l = line.split(":")
+          @settings[l[0].strip] = l[1].strip
+        end
+      end
+    end
+  end
+end
+
+begin
+  blink_cfg = BlinkRC.new
+  tf2_dir = blink_cfg.settings["tf2_dir"]
+  unless tf2_dir
+    error_msg = "Could not find blink_recordrc"
+    $logger.error error_msg
+    system("zenity --text=\"#{error_msg}\" --error")
+    abort error_msg
+  end
+  move_path = blink_cfg.settings["move_path"]
+  demo_dir = File.join tf2_dir, "tf/"
+  files = Dir.glob(demo_dir + "demo_*.dem")
+  files.each do |demo_file_path|
+    #Begin the demo parsing
+    begin
+      raw_data = File.open(demo_file_path, "r"){|file| file.sysread(4096)}
+      # https://developer.valvesoftware.com/wiki/DEM_Format
+      demodata = raw_data.unpack("A8/I/I/A260/A260/A260/A260/f/I/I/I")
+      nick = demodata[4]
+      map = demodata[5]
+      duration = demodata[7]
+      #Same weird format as prec, added seconds though.
+      time_str = File.mtime(demo_file_path).strftime("%Y%m%d_%H%M%S") 
+      new_file_path = File.join(move_path, "#{time_str}_#{map}-#{nick}")
+      new_file_path += "_#{(duration/60).to_i}m#{(duration%60).to_i}s.dem"
+      puts demo_file_path + " ---> " + new_file_path
+      FileUtils.mv(demo_file_path, new_file_path)
+    rescue => e
+      $stderr.puts(e)
+      $logger.error(e)
+      system("zenity --text=\"Could not move demo: #{demo_file_path}\n"\
+             "message: #{e.message}\" --error")
+      abort("Could not move #{demo_file_path}. Aborting.")
+    end
+  end
+  if ARGV.size == 0
+    system("steam steam://rungameid/440") if ARGV.size < 1
+  elsif ARGV.size ==  1
+    if ARGV[0] == "--version"
+      puts "blink_record binary version #{$version}"
+    else
+      system("steam #{ARGV[0]}")
+    end
+  else
+    #This should not happen but who knowes.
+    $logger.warn("To many arguments")
+    $logger.warn(ARGV)
+    system("zenity --text=\"Somehow this script was called with too many"\
+           "arguments\" --error")
+    abort("Usage: blink_record [steamurl]")
+  end
+rescue => e
+  $logger.error(e)
+  system("zenity --text\"Unexpected error.\n#{e.message}\" --error")
+  abort("Unexpected error: #{e.message}")
+end
