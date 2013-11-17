@@ -33,7 +33,7 @@ How do I install it?
 * Make backup of your existing configs. You should always have a backup...
 * If you are using Ubuntu/Debian/Mint etc. Open a terminal and run (copy paste this):
 
-  gksudo apt-get install -y ruby wget && wget https://github.com/nisseblink/blink_record/archive/master.zip -O blink_record-master.zip && unzip -o blink_record-master.zip && cd blink_record-master && ./installer.rb
+  gksudo -- apt-get install -y ruby wget && wget https://github.com/nisseblink/blink_record/archive/master.zip -O blink_record-master.zip && unzip -o blink_record-master.zip && cd blink_record-master && ./installer.rb
 
 * Open blink_record that you should be able to find through your favorite application launcher (it will launch tf2).
 * Open console and type `bind KEY blink_record` e.g. `bind f6 blink_record`.
