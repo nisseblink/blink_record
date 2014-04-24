@@ -4,14 +4,24 @@ require 'fileutils'
 require 'logger'
 require 'find'
 
+#def system(a)
+  #puts a
+#end
 $version = 0.1
 $blink_binary_path = '/usr/local/bin/blink_record'
 $blink_desktop_shortcut="#{(`xdg-user-dir DESKTOP`).strip}/blink_record.desktop"
 $blink_application_shortcut='/usr/share/applications/blink_record.desktop'
+$blink_autostart_shortcut="#{File.expand_path("~/.config/autostart")}/blink_record.desktop"
 
 $default_tf2_dir = File.expand_path("~/Steam/SteamApps/common/Team Fortress 2")
 
 $logger = Logger.new(File.expand_path("~/.blink_record.log"), 4, 1024000)
+
+#Quick hack for choosing graphical sudo if it exists
+$sudo_binary = "sudo"
+$sudo_binary = "gksudo" if system("which gksusdo > /dev/null 2>&1")
+$sudo_binary = "kdesudo" if system("which kdesudo > /dev/null 2>&1")
+
 
 class BlinkRC
   attr_accessor :settings,:path
@@ -47,14 +57,14 @@ def browse_for_tf2_dir(start_dir)
   dir = ""
   while true
     title = "Choose your tf2 dir (i.e. ..SteamApps/common/Team Fortress 2/)"
-    zen_str = "zenity --title=\"#{title}\" --file-selection --directory "\
-      "--filename=\"#{start_dir}\""
+    zen_str = "zenity --title='#{title}' --file-selection --directory "\
+      "--filename='#{start_dir}'"
     dir = `#{zen_str}`.strip
     #User chose Cancel
     if(dir == "")
       error_msg = "Can't install this without getting a tf2 directory."\
         "\nPlease rerun installer if you change your mind."
-      system("zenity --text=\"#{error_msg}\" --error")
+      system("zenity --text='#{error_msg}' --error")
       $logger.warn("User canceled tf2_dir dialog")
       abort("User canceled tf2_dir dialog")
     end
@@ -63,7 +73,7 @@ def browse_for_tf2_dir(start_dir)
     else
       error_text = 'Please select your tf2 directory'\
         '(should end with SteamApps/common/Team Fortress 2)'
-      system("zenity --text=\"#{error_text}\" --info")
+      system("zenity --text='#{error_text}' --info")
     end
   end
   dir
@@ -75,13 +85,13 @@ def browse_for_move_path(start_dir)
   dir = ""
   while true
     title = "Select path where to move demo files."
-    zen_str = "zenity --title=\"#{title}\" --file-selection --directory "\
-      "--filename=\"#{start_dir}\""
+    zen_str = "zenity --title='#{title}' --file-selection --directory "\
+      "--filename='#{start_dir}'"
     dir = `#{zen_str}`.strip
     #User chose Cancel
     if(dir == "")
       error_msg = "Taking this as you want to cancel this installation."
-      system("zenity --text=\"#{error_msg}\" --error")
+      system("zenity --text='#{error_msg}' --error")
       $logger.warn("User canceled move_path dialog")
       abort("User canceled move_path dialog")
     end
@@ -89,7 +99,7 @@ def browse_for_move_path(start_dir)
       break
     else
       error_text = 'Directory was not writable by the user.'
-      system("zenity --text=\"#{error_text}\" --info")
+      system("zenity --text='#{error_text}' --info")
     end
   end
   dir
@@ -103,7 +113,7 @@ def show_install_complete_dialog
     'consol by \npressing \'\§\' in-game and type:    '\
     'bind f6 blink_record\n'
 
-  system("zenity --title=\"#{title}\" --text=\"#{info}\" --info")
+  system("zenity --title='#{title}' --text='#{info}' --info")
 
 end
 
@@ -180,23 +190,32 @@ def install_blink_record
 
   #Using gksudo so the user don't miss it as easily.
   #More coherent with all those flashy dialogs.
-  system("gksudo -- cp src/blink_record #{$blink_binary_path}")
-  system("gksudo -- cp src/blink_record.desktop "\
+  system("#{$sudo_binary} -- cp src/blink_record #{$blink_binary_path}")
+  system("#{$sudo_binary} -- cp src/blink_record.desktop "\
         "#{$blink_application_shortcut}")
   FileUtils.cp("src/blink_record.desktop", $blink_desktop_shortcut)
+  if system("zenity --question --title='Autostart?' --text='Autostart with this"\
+            " user?'")
+    FileUtils.cp("src/blink_record.desktop", $blink_autostart_shortcut)
+  end
+  if system("zenity --question --title='Start blink_record?' --text='Do you"\
+            " want to start blink_record?'")
+    system("#{$blink_binary_path} &")
+  end
   show_install_complete_dialog
-end 
+end
 
 def uninstall_blink_record
-  system("gksudo -- rm #{$blink_binary_path}")
-  system("gksudo -- rm #{$blink_application_shortcut}")
+  system("#{$sudo_binary} -- rm #{$blink_binary_path}")
+  system("#{$sudo_binary} -- rm #{$blink_application_shortcut}")
   FileUtils.rm($blink_desktop_shortcut) rescue nil
+  FileUtils.rm($blink_autostart_shortcut) rescue nil
 
   config = BlinkRC.new
   unless(tf2_dir = config.settings["tf2_dir"])
     error_msg = "Could not find blink_recordrc file.\n"\
       "Will not remove tf2 cfg files."
-    system("zenity --text=\"#{error_msg}\" --error")
+    system("zenity --text='#{error_msg}' --error")
     $logger.warn("User canceled move_path dialog")
     abort("User canceled move_path dialog")
   end
@@ -232,6 +251,6 @@ begin
   end
 rescue => e
   $logger.error(e)
-  system("zenity --text=\"Unexpected error.\n#{e.message}\" --error")
+  system("zenity --text='Unexpected error.\n#{e.message}' --error")
   abort("Unexpected error: #{e.message}")
 end
