@@ -5,7 +5,10 @@ require 'fileutils'
 require 'logger'
 require 'inotify'
 
-$version = 0.1
+#Only allow one running instance
+exit unless File.new("/tmp/blink_record.lock", "w+").flock(File::LOCK_NB | File::LOCK_EX )
+
+$version = 0.2
 $logger = Logger.new(File.expand_path("~/.blink_record.log"), 4, 1024000)
 
 class BlinkRC
@@ -110,6 +113,7 @@ begin
   blink_record = BlinkRecord.new
   i = Inotify.new
 
+  #setup the inotify listening thread
   t = Thread.new do
     i.each_event do |ev|
       if ev.name =~ /demo_\d\d\.dem/
