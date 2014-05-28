@@ -45,13 +45,12 @@ nicely with prec demo files.
 
 How do I install it?
 ----------------
-* Make backup of your existing config. You should always have a
+* Make backup of your existing tf2 config. You should always have a
   backup...
 * If you are using Ubuntu/Debian/Mint etc. Open a terminal and run (copy
   paste this):
 ```
-gksudo -- apt-get install -y ruby wget && \
-sudo gem install inotify && \
+gksudo -- apt-get install -y ruby ruby-inotify wget && \
 wget https://github.com/nisseblink/blink_record/archive/master.zip -O blink_record-master.zip && \
 unzip -o blink_record-master.zip && cd blink_record-master && ./installer.rb && \
 ```
@@ -126,6 +125,10 @@ simply bugreports :)
 
 The project is released under the GLPv3 licence.
 
-Working on next
+What to work on next?
 ========================
-Bookmark functionality. This will be in the next release!
+Better UI. Zenity is not really that great for using in a installation
+wizard. Perhaps use ruby-qt and have some optional systray,
+notifications and settings.
+
+Gem-ify it?

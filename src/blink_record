@@ -10,6 +10,7 @@ exit unless File.new("/tmp/blink_record.lock", "w+").flock(File::LOCK_NB | File:
 
 $version = 0.2
 $logger = Logger.new(File.expand_path("~/.blink_record.log"), 4, 1024000)
+$logger.level = Logger::INFO
 
 class BlinkRC
   attr_accessor :settings,:path
@@ -31,7 +32,7 @@ class BlinkRC
 end
 
 class DemoFile
-  attr_reader :nick, :map, :duration, :time_str, :time
+  attr_reader :nick, :map, :duration, :time_str, :time, :ticks
 
   def initialize(path)
     raise "Path to demo file cannot be empty" unless path
@@ -45,6 +46,8 @@ class DemoFile
     @nick = demodata[4]
     @map = demodata[5]
     @duration = demodata[7]
+    @ticks = demodata[8]
+    #Stamped at end of demo
     @time = File.mtime(demo_file_path)
     #Same weird format as prec, added seconds though.
     @time_str = File.mtime(demo_file_path).strftime("%Y%m%d_%H%M%S")
@@ -63,10 +66,13 @@ class DemoFile
   end
 end
 
+#screenshots is an Array of filenames
 class BlinkRecord
+  attr_accessor :screenshots
   attr_reader :demo_dir
 
   def initialize
+    @screenshots = Array.new
     blink_cfg = BlinkRC.new
     @tf2_dir = blink_cfg.settings["tf2_dir"]
     unless @tf2_dir
@@ -83,42 +89,89 @@ class BlinkRecord
     #Begin the demo parsing
     begin
       demo_file_path = File.join(@demo_dir, filename)
-      $logger.info demo_file_path
       d = DemoFile.new(demo_file_path)
-      $logger.info d
+      $logger.debug d
       new_file_path = File.join(@move_path, "#{d.time_str}_#{d.map}-#{d.nick}")
       new_file_path += "_#{(d.duration/60).to_i}m#{(d.duration%60).to_i}s.dem"
       puts demo_file_path + " ---> " + new_file_path
       $logger.info demo_file_path + " ---> " + new_file_path
       FileUtils.mv(demo_file_path, new_file_path)
+
+      #bookmarks
+      not_process_screenshots = Array.new
+      screenshots.each do |s|
+        ss_full_path = File.join(@demo_dir, "screenshots", s)
+        #ctime,mtime seems to be the same and is stamped at end of demo.
+        #using mtime as this should always be at end of demo.
+        ss_time = File.mtime(ss_full_path)
+        #ticks per second
+        tps = d.ticks / d.duration
+        # bmark time = (screenshot created at time) - (demo crated at time)
+        bmark_time_elapse = ss_time - (d.time - d.duration)
+        #If this happen the screenshot is out of range for demo
+        if(bmark_time_elapse < 0 || bmark_time_elapse > d.duration)
+          $logger.warn("bookmark screenshot out of range: demo #{d.time},"\
+                       " screenshot: #{ss_time}")
+          #Add screenshot for next recording to test if it will work with next
+          #demo file. This is an edge case and should really not happen.
+          not_process_screenshots << s
+          next
+        end
+        tick = (bmark_time_elapse * tps ).to_i
+
+        ss_name = File.basename(s, ".jpg")
+        message = ss_name.match(/^blink_bmark_?(.*)$/)[1] rescue "bmark"
+        message = "bmark" if message.empty?
+        $logger.info("Adding bookmark to file: "\
+                     "#{File.join(@move_path, "bookmark.txt")}")
+        bmark_text = "#{File.basename(new_file_path)} : #{tick} ticks :"\
+          "#{(bmark_time_elapse/60).to_i}m#{(bmark_time_elapse%60).to_i}s : "\
+          "#{message}"
+        $logger.info("bookmark text #{bmark_text}")
+        File.open(File.join(@move_path, "bookmark.txt"), "a") do |f|
+          f.puts bmark_text
+        end
+        #Move bookmark image to to demo file location.
+        FileUtils.mv(ss_full_path, "#{new_file_path}.#{tick.to_s}.jpg")
+        #Reset screenshots
+        @screenshots = not_process_screenshots
+      end
     rescue => e
       $stderr.puts(e)
       $logger.error(e)
       system("zenity --text=\"Could not move demo: #{demo_file_path}\n"\
              "message: #{e.message}\" --error")
-      abort("Could not move #{demo_file_path}. Aborting.")
     end
   end
+
 end
 
 if ARGV.size ==  1
   if ARGV[0] == "--version" || ARGV[0] == "-v"
     puts "blink_record binary version #{$version}"
     exit 0
+  elsif ARGV[0] == "--debug"
+    $logger.level = Logger::DEBUG
   end
 end
 
-begin
 
+begin
   blink_record = BlinkRecord.new
   i = Inotify.new
 
   #setup the inotify listening thread
   t = Thread.new do
     i.each_event do |ev|
+      #A new demo file
       if ev.name =~ /demo_\d\d\.dem/
         $logger.info ev.inspect
         blink_record.move_demo_file(ev.name)
+      #The naive approach where you search for screenshots at each demo
+      #parse/move should be more robust but let's optimize.
+      elsif ev.name =~ /blink_bmark.*\.jpg/
+        $logger.info ev.inspect
+        blink_record.screenshots << ev.name
       end
     end
   end
@@ -126,9 +179,12 @@ begin
   begin
     #Only show newly written closed files
     i.add_watch(blink_record.demo_dir, Inotify::CLOSE_WRITE)
+    i.add_watch(File.join(blink_record.demo_dir, "screenshots/"),
+                Inotify::CLOSE_WRITE)
   rescue => e
-    $logger.error error_msg
+    $logger.error e
     system("zenity --text\"Error in inotify.\n#{e.message}\" --error")
+    abort("Error in registering inotify. Aborting.")
   end
 
   t.join
