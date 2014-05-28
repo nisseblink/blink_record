@@ -4,7 +4,7 @@ require 'fileutils'
 require 'logger'
 require 'find'
 
-$version = 0.1
+$version = 0.2
 $blink_binary_path = '/usr/local/bin/blink_record'
 $blink_desktop_shortcut="#{(`xdg-user-dir DESKTOP`).strip}/blink_record.desktop"
 $blink_application_shortcut='/usr/share/applications/blink_record.desktop'
