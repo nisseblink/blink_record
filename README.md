@@ -6,17 +6,25 @@ using linux in the absence of prec.
 
 What's new?
 -----------
+Version 0.3
+* Fixed bookmark functionality (steam moves screenshot files when there is
+more than one screenshot with the same name).
+* Added scoreboard/status screenshot functionality.
+* Added key binding to installer.
+
 Version 0.2
-* Changed to running in background and using inotify. This will
+* Changed to running in background and using _inotify_. This will
   decouple blink_record from steam, the browser and tf2.
+* Added bookmark functionality.
 
-To update, do a normal installation.
+__To update, do a normal installation.__
+
 If you are updating it note that it no longer supports steam links and
-you must change back default application for steam links.
+you should change back default application for steam links.
 
-In firefox you do this in Edit/Preferences/Applications.
-Content type: steam
-Action: Use other, then /usr/games/steam
+1. In Firefox you do this in Edit/Preferences/Applications.
+2. Content type: steam
+3. Action/Use other, then `/usr/games/steam`
 
 Version 0.1
 * Rewrote the install script in ruby.
@@ -43,6 +51,9 @@ The resulting filename is: `YYYYMMDD_HHMM_MAPNAME-NICK_DURATION.dem`
 (e.g. 20131021_044823_pl_badwater-Nisseblink_41m24s.dem) It will sort
 nicely with prec demo files.
 
+It also adds bookmark functionality and even a screenshot of the time of
+the bookmark.
+
 How do I install it?
 ----------------
 * Make backup of your existing tf2 config. You should always have a
@@ -52,21 +63,17 @@ How do I install it?
 ```
 gksudo -- apt-get install -y ruby ruby-inotify wget && \
 wget https://github.com/nisseblink/blink_record/archive/master.zip -O blink_record-master.zip && \
-unzip -o blink_record-master.zip && cd blink_record-master && ./installer.rb && \
+unzip -o blink_record-master.zip && cd blink_record-master && ./installer.rb
 ```
-If it gives you `gem: command not found` install ruby-gems with
-`gksudo apt-get install rubygems` and rerun the installation.
-
-* Start tf2 and open console, type `bind KEY blink_record` e.g. `bind f6
-  blink_record`.
-* (If you have unbindall you need to edit them and add `bind KEY
-  blink_record` at the appropriate location(s).)
 
 How do I use it?
 ----------------
 * Make sure that blink_record is running.
 * Start tf2
-* Use your binded key to cycle start/stop recording.
+* Use your record key to cycle start/stop recording.
+* Use your bmark key to add a bookmark to a demo.
+* Status/scoreboard screenshots are added if you take a bookmark within
+  the grace period set during installation.
 
 FNAQ
 ===========
@@ -87,19 +94,14 @@ changed the default launcher for steam links please change it back.
 
 Requirements
 ----------------
-**During installation**
-* gksudo (used for installing ruby and copy binary and application launcher)
-* Team Fortress 2
-* zenity (Steam uses this so should already be installed)
 
-**Application runtime**
 * Ruby (and inotify gem)
 * Team Fortress 2
 * zenity (Steam uses this so should already be installed)
 
 How does it work
 ----------------
-There is two components to this setup, tf2 script and a daemeon.
+There is two components to this setup, tf2 script and a daemon.
 
 **Team Fortress 2 script**
 
@@ -112,6 +114,8 @@ adds this file.
 * Listening for newly closed files in tf directory
 * If demo file, parse header.
 * Rename the files and move them.
+* Checks for screenshots taken during the demo recording and adds
+  bookmarks/status/scoreboard to the demo.
 * That is it.
 
 Source code
@@ -120,8 +124,8 @@ I encourage you to browse through the source code and look for yourself
 what is happening. There are about 400 lines of ruby code so it should not be
 a problem.
 
-Feel free to contribute to the project by sending me changes/bugfixes or
-simply bugreports :)
+Feel free to contribute to the project by sending me changes/bug fixes or
+simply bug reports :)
 
 The project is released under the GLPv3 licence.
 

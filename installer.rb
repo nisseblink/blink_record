@@ -4,7 +4,7 @@ require 'fileutils'
 require 'logger'
 require 'find'
 
-$version = 0.2
+$version = 0.3
 $blink_binary_path = '/usr/local/bin/blink_record'
 $blink_desktop_shortcut="#{(`xdg-user-dir DESKTOP`).strip}/blink_record.desktop"
 $blink_application_shortcut='/usr/share/applications/blink_record.desktop'
@@ -104,14 +104,8 @@ end
 
 def show_install_complete_dialog
   title = 'Installation complete!'
-  info = 'To use blink_record, open blink_record instead of tf2 from now'\
-    ' on.\n(It will rename the demo files and start tf2)\n\n'\
-    'All that is left is to start tf2 (by blink_record) and open the '\
-    'consol by \npressing \'\§\' in-game and type:    '\
-    'bind f6 blink_record\n'
-
+  info = 'To use blink_record, start tf2 and use your binded keys.'
   system("zenity --title='#{title}' --text='#{info}' --info")
-
 end
 
 #Retuns path if found and nil otherwise
@@ -159,6 +153,22 @@ def find_and_alter_autoexec(tf2_dir, remove)
   false
 end
 
+def get_text_input(title, text, default_value)
+    `zenity --title='#{title}' --text='#{text}' --entry --entry-text='#{default_value}'`.strip
+end
+
+def show_tf2_binds_dialogs(record_bind, bookmark_bind, grace)
+  text = 'Cancel to skip this and make your own binds.'
+  rk = get_text_input("Choose record key", text, record_bind)
+  bmk = get_text_input("Choose bookmark key", text, bookmark_bind)
+
+  text = 'Time(s) in the start/end that bookmarks will be handled as'\
+    'status/scoreboard screenshots.\nCancel to disable this feature.'
+  g = get_text_input("Choose a grace period", text, grace)
+
+  [rk, bmk, g]
+end
+
 def install_blink_record
   blink_rc = BlinkRC.new
   settings = blink_rc.settings
@@ -183,6 +193,19 @@ def install_blink_record
     File.open(File.join(cfg_dir, "autoexec.cfg"), "w") do |file|
       file.puts "exec blink_record //88b9a67a-815c-4e1a-b4b2-ffbac1fddff2"
     end
+  end
+
+  #Promt user for binds and grace period.
+  binds = show_tf2_binds_dialogs(settings["record_bind"] || "f6",
+                                 settings["bookmark_bind"] || "f11",
+                                 settings["grace"] || "10")
+  settings["record_bind"] = binds[0] unless binds[0].empty?
+  settings["bookmark_bind"] = binds[1] unless binds[1].empty?
+  settings["grace"] = binds[2] unless binds[2].empty?
+  blink_rc.save
+  File.open(File.join(cfg_dir, "blink_record.cfg"), "a") do |f|
+    f.puts "bind #{settings["record_bind"]} blink_record" unless binds[0].empty?
+    f.puts "bind #{settings["bookmark_bind"]} blink_bmark" unless binds[1].empty?
   end
 
   #Using gksudo so the user don't miss it as easily.
