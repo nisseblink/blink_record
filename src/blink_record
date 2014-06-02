@@ -8,10 +8,11 @@ require 'inotify'
 #Only allow one running instance
 exit unless File.new("/tmp/blink_record.lock", "w+").flock(File::LOCK_NB | File::LOCK_EX )
 
-$version = 0.2
-$logger = Logger.new(File.expand_path("~/.blink_record.log"), 4, 1024000)
+$version = 0.3
+$logger = Logger.new(File.expand_path("~/.blink_record.log"), 1, 1024000)
 $logger.level = Logger::INFO
 
+#Reads the config from file.
 class BlinkRC
   attr_accessor :settings,:path
 
@@ -20,7 +21,7 @@ class BlinkRC
     @path = path
     @settings = Hash.new
     if(File.exists?(path))
-      $logger.info "Reading from config file."
+      $logger.debug "Reading from config file."
       File.open(path) do |file|
         file.readlines.each do |line|
           l = line.split(":")
@@ -31,14 +32,18 @@ class BlinkRC
   end
 end
 
+#This class represents a .dem file. It parses the header of the file to object
+#variables.
 class DemoFile
   attr_reader :nick, :map, :duration, :time_str, :time, :ticks
 
+  #Initializes the class.
   def initialize(path)
     raise "Path to demo file cannot be empty" unless path
     parse(path)
   end
 
+  #Parse the header of .dem file and stores them in object variables.
   def parse(demo_file_path)
     raw_data = File.open(demo_file_path, "r"){|file| file.sysread(4096)}
     # https://developer.valvesoftware.com/wiki/DEM_Format
@@ -66,11 +71,11 @@ class DemoFile
   end
 end
 
-#screenshots is an Array of filenames
+#Class that handles demo moving and screenshots/bookmarks logic.
 class BlinkRecord
-  attr_accessor :screenshots
   attr_reader :demo_dir
 
+  #Initialized the class by reading config and assigning object variables.
   def initialize
     @screenshots = Array.new
     blink_cfg = BlinkRC.new
@@ -83,59 +88,80 @@ class BlinkRecord
     end
     @move_path = blink_cfg.settings["move_path"]
     @demo_dir = File.join @tf2_dir, "tf/"
+    #Amount of time(s) for status and score screenshots in the beginning/end.
+    @grace = blink_cfg.settings["grace"].to_i rescue 0
   end
 
+  #Search for screenshot files in @demo_dir/screenshots/ with the name
+  #blink_bmark*.jpg and a timestamp that is in the range of demo file.
+  #Decides if the screenshot is a status,scoreboard or a bookmark and move
+  #files to @move_path with sane name and adds line too bookmark.txt if it is a
+  #bookmark.
+  def find_and_handle_screenshots(base_name, demo_start, demo_end, tps)
+    ss_path = File.join(@demo_dir, "screenshots/blink_bmark*.jpg")
+
+    Dir.glob(ss_path) do |ss|
+      begin
+        ss_time = File.mtime(ss)
+        $logger.debug("demo_start: #{demo_start}, ss_time: #{ss_time}, "\
+                      "demo_end: #{demo_end}, tps: #{tps}, grace:#{@grace}")
+        #Status screenshot, taking withing the grace period.
+        if(ss_time.between?(demo_start, demo_start + @grace))
+          FileUtils.mv(ss, "#{base_name}.status.jpg")
+
+          #Bookmark screenshot
+        elsif(ss_time.between?(demo_start + @grace, demo_end - @grace))
+          bmark_time_elapse = ss_time - demo_start
+          tick = (bmark_time_elapse * tps ).to_i
+          ss_name = File.basename(ss, ".jpg")
+          message = ss_name.match(/^blink_bmark_?([a-zA-Z]+[^_]*)_?\d*$/)[1] rescue "bmark"
+          message = "bmark" if message.empty?
+          $logger.info("Adding bookmark to file: "\
+                       "#{File.join(@move_path, "bookmark.txt")}")
+          bmark_text = "#{File.basename(base_name)} : #{tick} ticks :"\
+            "#{(bmark_time_elapse/60).to_i}m#{(bmark_time_elapse%60).to_i}s : "\
+            "#{message}"
+          $logger.info("bookmark text #{bmark_text}")
+          File.open(File.join(@move_path, "bookmark.txt"), "a") do |f|
+            f.puts bmark_text
+          end
+          #Move bookmark image to to demo file location.
+          FileUtils.mv(ss, "#{base_name}.#{tick.to_s}.jpg")
+
+          #Scoreboard screenshot, taking withing the grace period.
+        elsif(ss_time.between?(demo_end - @grace, demo_end))
+          FileUtils.mv(ss, "#{base_name}.scoreboard.jpg")
+        end
+        #Bookmarks are not worth crashing for. Log and skip if problems occur.
+      rescue => e
+        $logger.error("Failed to process screenshot: #{ss}")
+        $logger.error(e)
+      end
+    end
+
+  end
+
+  #Handles new demo file event.
   def move_demo_file(filename)
-    #Begin the demo parsing
     begin
+      #Handle demo file
       demo_file_path = File.join(@demo_dir, filename)
       d = DemoFile.new(demo_file_path)
       $logger.debug d
       new_file_path = File.join(@move_path, "#{d.time_str}_#{d.map}-#{d.nick}")
+      screenshot_basename = new_file_path
       new_file_path += "_#{(d.duration/60).to_i}m#{(d.duration%60).to_i}s.dem"
       puts demo_file_path + " ---> " + new_file_path
       $logger.info demo_file_path + " ---> " + new_file_path
       FileUtils.mv(demo_file_path, new_file_path)
 
-      #bookmarks
-      not_process_screenshots = Array.new
-      screenshots.each do |s|
-        ss_full_path = File.join(@demo_dir, "screenshots", s)
-        #ctime,mtime seems to be the same and is stamped at end of demo.
-        #using mtime as this should always be at end of demo.
-        ss_time = File.mtime(ss_full_path)
-        #ticks per second
-        tps = d.ticks / d.duration
-        # bmark time = (screenshot created at time) - (demo crated at time)
-        bmark_time_elapse = ss_time - (d.time - d.duration)
-        #If this happen the screenshot is out of range for demo
-        if(bmark_time_elapse < 0 || bmark_time_elapse > d.duration)
-          $logger.warn("bookmark screenshot out of range: demo #{d.time},"\
-                       " screenshot: #{ss_time}")
-          #Add screenshot for next recording to test if it will work with next
-          #demo file. This is an edge case and should really not happen.
-          not_process_screenshots << s
-          next
-        end
-        tick = (bmark_time_elapse * tps ).to_i
+      #Handle bookmarks
+      #ticks per second
+      tps = d.ticks / d.duration
+      demo_start = d.time - d.duration
+      demo_end = d.time
+      find_and_handle_screenshots(screenshot_basename, demo_start, demo_end, tps)
 
-        ss_name = File.basename(s, ".jpg")
-        message = ss_name.match(/^blink_bmark_?(.*)$/)[1] rescue "bmark"
-        message = "bmark" if message.empty?
-        $logger.info("Adding bookmark to file: "\
-                     "#{File.join(@move_path, "bookmark.txt")}")
-        bmark_text = "#{File.basename(new_file_path)} : #{tick} ticks :"\
-          "#{(bmark_time_elapse/60).to_i}m#{(bmark_time_elapse%60).to_i}s : "\
-          "#{message}"
-        $logger.info("bookmark text #{bmark_text}")
-        File.open(File.join(@move_path, "bookmark.txt"), "a") do |f|
-          f.puts bmark_text
-        end
-        #Move bookmark image to to demo file location.
-        FileUtils.mv(ss_full_path, "#{new_file_path}.#{tick.to_s}.jpg")
-        #Reset screenshots
-        @screenshots = not_process_screenshots
-      end
     rescue => e
       $stderr.puts(e)
       $logger.error(e)
@@ -155,6 +181,7 @@ if ARGV.size ==  1
   end
 end
 
+#Handles new demo file event.
 
 begin
   blink_record = BlinkRecord.new
@@ -167,11 +194,6 @@ begin
       if ev.name =~ /demo_\d\d\.dem/
         $logger.info ev.inspect
         blink_record.move_demo_file(ev.name)
-      #The naive approach where you search for screenshots at each demo
-      #parse/move should be more robust but let's optimize.
-      elsif ev.name =~ /blink_bmark.*\.jpg/
-        $logger.info ev.inspect
-        blink_record.screenshots << ev.name
       end
     end
   end
@@ -179,8 +201,6 @@ begin
   begin
     #Only show newly written closed files
     i.add_watch(blink_record.demo_dir, Inotify::CLOSE_WRITE)
-    i.add_watch(File.join(blink_record.demo_dir, "screenshots/"),
-                Inotify::CLOSE_WRITE)
   rescue => e
     $logger.error e
     system("zenity --text\"Error in inotify.\n#{e.message}\" --error")

@@ -6,19 +6,25 @@ using linux in the absence of prec.
 
 What's new?
 -----------
+Version 0.3
+* Fixed bookmark functionality (steam moves screenshot files when there is
+more than one screenshot with the same name).
+* Added scoreboard/status screenshot functionality.
+* Added key binding to installer.
+
 Version 0.2
 * Changed to running in background and using _inotify_. This will
   decouple blink_record from steam, the browser and tf2.
 * Added bookmark functionality.
 
-To update, do a normal installation.
+__To update, do a normal installation.__
 
 If you are updating it note that it no longer supports steam links and
 you should change back default application for steam links.
 
-In Firefox you do this in Edit/Preferences/Applications.
-Content type: steam
-Action: Use other, then /usr/games/steam
+1. In Firefox you do this in Edit/Preferences/Applications.
+2. Content type: steam
+3. Action/Use other, then `/usr/games/steam`
 
 Version 0.1
 * Rewrote the install script in ruby.
@@ -59,18 +65,15 @@ gksudo -- apt-get install -y ruby ruby-inotify wget && \
 wget https://github.com/nisseblink/blink_record/archive/master.zip -O blink_record-master.zip && \
 unzip -o blink_record-master.zip && cd blink_record-master && ./installer.rb
 ```
-* Start tf2 and open console, type `bind KEY blink_record` e.g. `bind f6
-  blink_record`.
-* (If you have unbindall you need to edit them and add `bind KEY
-  blink_record` at the appropriate location(s).)
-* `bind KEY blink_bmark` to use the bookmark functionality.
 
 How do I use it?
 ----------------
 * Make sure that blink_record is running.
 * Start tf2
-* Use your binded key to cycle start/stop recording.
+* Use your record key to cycle start/stop recording.
 * Use your bmark key to add a bookmark to a demo.
+* Status/scoreboard screenshots are added if you take a bookmark within
+  the grace period set during installation.
 
 FNAQ
 ===========
@@ -111,6 +114,8 @@ adds this file.
 * Listening for newly closed files in tf directory
 * If demo file, parse header.
 * Rename the files and move them.
+* Checks for screenshots taken during the demo recording and adds
+  bookmarks/status/scoreboard to the demo.
 * That is it.
 
 Source code
